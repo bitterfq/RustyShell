@@ -10,46 +10,32 @@ use libc::{c_int, c_char};
 
 use std::io::{stdin, stdout, Write}; 
 
-// for accepting cmdline args
-// ref: https://doc.rust-lang.org/book/ch12-01-accepting-command-line-arguments.html
-use std::env; 
-
 // crate to return current directory as PathBuf
 extern crate nix; 
 use nix::unistd;
 
+//A module for working with process
+// ref: https://doc.rust-lang.org/std/process/index.html
+use std::process::Command; 
+
 const CMDLINE_MAX: usize = 512; 
 
-/*
-    A struct that holds (in order):
-    
-    1. The inital command
-    2. The arguments of the command
-    3. The ending null terminator
+fn sys(command:&str) {
+   
+    let mut child = Command::new(command)
+    .spawn()
+    .unwrap();
 
-*/
-
-struct ParsedInput {
-
-    cd_active: c_int,
-    total_args: c_int, 
-    arg_error: c_int, 
-    cd: c_int, 
-    c: Vec<String>
-
+    child.wait().expect("command didn't run");
 }
 
 fn main() {
-    
-    // returns itr of cmdline args
-    // ref: https://doc.rust-lang.org/book/ch12-01-accepting-command-line-arguments.html
-    let mut cmd: *mut i8; 
-
+   
     loop {
         
-        let mut s = String::new(); 
-        let n1: Vec<c_char> ; 
-        let mut ret: c_int ; 
+        let mut input = String::new(); 
+        let _n1: Vec<c_char> ; 
+        let mut _ret: c_int ; 
 
         /* Print prompt */
         print!("rusty$ ");
@@ -58,28 +44,32 @@ fn main() {
         /* Get command line 
             ref: https://users.rust-lang.org/t/how-to-get-user-input/5176/2
         */
-        stdin().read_line(&mut s).expect("Command not recognized");
-        if s.len() > CMDLINE_MAX {
+        stdin().read_line(&mut input).unwrap();
+
+        if input.len() > CMDLINE_MAX {
             println!("Error: Command line max reached"); 
             continue; 
         }
-        if let Some('\n')=s.chars().next_back() {
-            s.pop();
+        if let Some('\n')=input.chars().next_back() {
+            input.pop();
         }
-        if let Some('\r')=s.chars().next_back() {
-            s.pop();
+        if let Some('\r')=input.chars().next_back() {
+            input.pop();
         }
+
+        let command = input.trim(); 
+       
 
         /* Builtin Command */
 
         /* Exit implementation*/
-        if s == "exit" || s == "Exit" || s == "EXIT"{
+        if input == "exit" || input == "Exit" || input == "EXIT"{
             println!("exiting...");
             println!("+ completed 'exit' [0]");
             break;
         } 
         /* pwd implementation*/
-        if s == "pwd" {
+        if input == "pwd" {
             let dir = unistd::getcwd().unwrap(); 
             println!("{:?}", dir); 
             println!("+ completed 'pwd' [0]");
@@ -89,10 +79,16 @@ fn main() {
         /* clear implementation
             ref:https://rosettacode.org/wiki/Terminal_control/Clear_the_screen#Rust
         */
-        if s == "clear" {
+        if input == "clear" {
             print!("\x1B[2J");
             println!("+ completed 'clear' [0]");
         }
+        
+
+        sys(command);
+        println!("+ completed '{}' [0]", command);
+
+        
     }
 }
 
