@@ -1,3 +1,5 @@
 /target
 /.vscode
 project_1.html
+Cargo.lock
+debug/
