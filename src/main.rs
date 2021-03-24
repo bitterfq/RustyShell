@@ -20,9 +20,10 @@ use std::process::Command;
 
 const CMDLINE_MAX: usize = 512; 
 
-fn sys(command:&str) {
+fn sys(command:&str, args:std::str::SplitWhitespace) {
    
     let mut child = Command::new(command)
+    .args(args)
     .spawn()
     .unwrap();
 
@@ -57,8 +58,9 @@ fn main() {
             input.pop();
         }
 
-        let command = input.trim(); 
-       
+        let mut parts = input.trim().split_whitespace();
+        let command = parts.next().unwrap(); 
+        let args = parts;
 
         /* Builtin Command */
 
@@ -85,7 +87,7 @@ fn main() {
         }
         
 
-        sys(command);
+        sys(command, args);
         println!("+ completed '{}' [0]", command);
 
         
