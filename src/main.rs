@@ -18,16 +18,38 @@ use nix::unistd;
 // ref: https://doc.rust-lang.org/std/process/index.html
 use std::process::Command; 
 
+// Type to support path operations
+// ref: https://doc.rust-lang.org/std/path/struct.Path.html
+use std::path::Path; 
+
+// Module for manipulation of process's enviorments
+use std::env; 
+
 const CMDLINE_MAX: usize = 512; 
 
 fn sys(command:&str, args:std::str::SplitWhitespace) {
    
-    let mut child = Command::new(command)
-    .args(args)
-    .spawn()
-    .unwrap();
+    match command {
+        "cd" => {
+            // default to '/' as new directory if one was not provided
+            let new_dir = args.peekable().peek().map_or("/", |x| *x);
+            let root = Path::new(new_dir);
+            if let Err(e) = env::set_current_dir(&root) {
+                eprintln!("{}",e);
+            }
+        },
 
-    child.wait().expect("command didn't run");
+        command => {
+            let child = Command::new(command)
+            .args(args)
+            .spawn();
+
+            match child {
+                Ok(mut child) => {child.wait().expect("command didn't run");}, 
+                Err(e) => eprintln!("{}", e),
+            };
+        }
+    }
 }
 
 fn main() {
