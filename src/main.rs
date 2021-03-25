@@ -16,7 +16,7 @@ use nix::unistd;
 
 //A module for working with process
 // ref: https://doc.rust-lang.org/std/process/index.html
-use std::process::Command; 
+use std::process::{Command, Child, Stdio}; 
 
 // Type to support path operations
 // ref: https://doc.rust-lang.org/std/path/struct.Path.html
@@ -27,30 +27,7 @@ use std::env;
 
 const CMDLINE_MAX: usize = 512; 
 
-fn sys(command:&str, args:std::str::SplitWhitespace) {
-   
-    match command {
-        "cd" => {
-            // default to '/' as new directory if one was not provided
-            let new_dir = args.peekable().peek().map_or("/", |x| *x);
-            let root = Path::new(new_dir);
-            if let Err(e) = env::set_current_dir(&root) {
-                eprintln!("{}",e);
-            }
-        },
 
-        command => {
-            let child = Command::new(command)
-            .args(args)
-            .spawn();
-
-            match child {
-                Ok(mut child) => {child.wait().expect("command didn't run");}, 
-                Err(e) => eprintln!("{}", e),
-            };
-        }
-    }
-}
 
 fn main() {
    
@@ -62,13 +39,13 @@ fn main() {
 
         /* Print prompt */
         print!("rusty$ ");
-        let _ = stdout().flush(); 
+        let _ = stdout().flush().unwrap(); 
 
         /* Get command line 
             ref: https://users.rust-lang.org/t/how-to-get-user-input/5176/2
         */
         stdin().read_line(&mut input).unwrap();
-
+                    
         if input.len() > CMDLINE_MAX {
             println!("Error: Command line max reached"); 
             continue; 
@@ -80,39 +57,85 @@ fn main() {
             input.pop();
         }
 
-        let mut parts = input.trim().split_whitespace();
-        let command = parts.next().unwrap(); 
-        let args = parts;
-
-        /* Builtin Command */
-
-        /* Exit implementation*/
-        if input == "exit" || input == "Exit" || input == "EXIT"{
+        if input == "exit" {
             println!("exiting...");
             println!("+ completed 'exit' [0]");
             break;
-        } 
-        /* pwd implementation*/
-        if input == "pwd" {
-            let dir = unistd::getcwd().unwrap(); 
-            println!("{:?}", dir); 
-            println!("+ completed 'pwd' [0]");
-            continue;
         }
 
-        /* clear implementation
-            ref:https://rosettacode.org/wiki/Terminal_control/Clear_the_screen#Rust
-        */
-        if input == "clear" {
-            print!("\x1B[2J");
-            println!("+ completed 'clear' [0]");
-        }
-        
+        let mut commands = input.trim().split(" | ").peekable();
+        let mut previous_command = None; 
 
-        sys(command, args);
-        println!("+ completed '{}' [0]", command);
+        while let Some(command) = commands.next() {
+            
+            let mut parts = command.trim().split_whitespace();
+            let command = parts.next().unwrap(); 
+            let args = parts;
+             /* Builtin Command */
 
-        
+            /* pwd implementation*/
+            if input == "pwd" {
+                let dir = unistd::getcwd().unwrap(); 
+                println!("{:?}", dir); 
+                println!("+ completed 'pwd' [0]");
+                continue;
+            }
+
+            /* clear implementation
+                ref:https://rosettacode.org/wiki/Terminal_control/Clear_the_screen#Rust
+            */
+            if input == "clear" {
+                print!("\x1B[2J");
+                println!("+ completed 'clear' [0]");
+            }
+            
+            match command {
+                "cd" => {
+                    // default to '/' as new directory if one was not provided
+                    let new_dir = args.peekable().peek().map_or("/", |x| *x);
+                    let root = Path::new(new_dir);
+                    if let Err(e) = env::set_current_dir(&root) {
+                        eprintln!("{}",e);
+                    }
+                    previous_command = None; 
+                },
+                
+               
+
+                command => {
+
+                    let stdin = previous_command
+                        .map_or(Stdio::inherit(),
+                                |output: Child| Stdio::from(output.stdout.unwrap()));
+
+                    let stdout = if commands.peek().is_some() {
+                        // there is another command piped behind this one
+                        // prepare to send output to the next command
+                        Stdio::piped()
+                    } else {
+                        // there are no more commands piped behind this one
+                        // send output to shell stdout
+                        Stdio::inherit()
+                    };
+
+                    let output = Command::new(command)
+                        .args(args)
+                        .stdin(stdin)
+                        .stdout(stdout)
+                        .spawn();
+                    
+                    println!("+ completed '{}' [0]", command);
+
+                    match output {
+                        Ok(output) => { previous_command = Some(output); },
+                        Err(e) => {
+                            previous_command = None;
+                            eprintln!("{}", e);
+                        }
+                    }
+                }
+            }
+        }    
     }
 }
 
