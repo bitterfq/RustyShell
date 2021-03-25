@@ -3,6 +3,6 @@
 project_1.html
 Cargo.lock
 debug/
-/src/main.exe
-/src/main.pdb
+src/main.exe
+src/main.pdb
 c_shell.c
